@@ -4,7 +4,7 @@ import json
 import requests
 import html 
 from google import genai
-from google.genai import types # ضروري للتعامل مع الصور بلا ValidationError
+from google.genai import types 
 from seleniumbase import Driver
 from datetime import datetime
 
@@ -14,8 +14,8 @@ CONFIG = {
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
     "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     "TARGET_URL": "https://www.facebook.com/marketplace/fez/propertyrentals/?exact=false",
-    "MODEL_ID": "gemini-2.5-flash", # المحرك المعتمد فـ 2026
-    "WAIT_BETWEEN_DEALS": 70 # زيادة الأمان لتفادي Resource Exhausted
+    "MODEL_ID": "gemini-2.5-flash", 
+    "WAIT_BETWEEN_DEALS": 70 
 }
 
 client = genai.Client(api_key=CONFIG["GEMINI_API_KEY"])
@@ -29,7 +29,7 @@ class UltimateVisionHunter:
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [{status}] 🛡️ {msg}")
 
     def init_session(self):
-        self.log("إقلاع المحرك الفولاذي (V16 - Vision Pro)...")
+        self.log("إقلاع المحرك الفولاذي (V16.1 - Precise Vision)...")
         self.driver = Driver(uc=True, headless=True)
         try:
             self.driver.get("https://web.facebook.com")
@@ -60,20 +60,22 @@ class UltimateVisionHunter:
                 raw_text = card.text.split('\n')
                 link = card.find_element("css selector", "a").get_attribute("href").split('?')[0]
                 if "/marketplace/item/" in link and len(raw_text) >= 2:
-                    self.deals.append({
-                        "price": raw_text[0], 
-                        "title": raw_text[1], 
-                        "link": link, 
-                        "image": img
-                    })
+                    self.deals.append({"price": raw_text[0], "title": raw_text[1], "link": link, "image": img})
             except: continue
         self.log(f"تم قنص {len(self.deals)} بطاقات.")
 
     def send_to_telegram(self, report, image_url):
+        """إرسال بنظام الحماية من طول النص"""
         url = f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto"
-        # تنظيف HTML لضمان وصول الميساج بحال "تححححح.PNG"
+        
+        # تنظيف HTML لضمان التنسيق النخبوي بحال "تححححح.PNG"
         safe_report = html.escape(report).replace('&lt;b&gt;', '<b>').replace('&lt;/b&gt;', '</b>')
         
+        # نظام الحماية: تيليغرام كايقبل بحد أقصى 1024 حرف ف الكابشن
+        if len(safe_report) > 1000:
+            self.log("⚠️ التقرير طويل بزاف، كنقصو منو باش يدوز لتيليغرام...")
+            safe_report = safe_report[:1000] + "... (نص طويل جداً)"
+
         payload = {
             "chat_id": CONFIG["TELEGRAM_CHAT_ID"],
             "photo": image_url,
@@ -90,48 +92,39 @@ class UltimateVisionHunter:
             self.log(f"خطأ تقني: {e}", "ERROR")
 
     def analyze_and_broadcast(self):
-        """التحليل النخبوي البصري (Vision) لتفادي ValidationError"""
+        """التحليل النخبوي البصري المركز"""
         for i, deal in enumerate(self.deals):
             self.log(f"تحليل الهمزة {i+1}/{len(self.deals)} بالرؤية الحاسوبية...")
             
-            # برومبت نخبوي شامل (ستايل تححححح.PNG)
+            # برومبت نخبوي شامل ولكن "مختصر" لتفادي تجاوز 1024 حرف
             elite_prompt = f"""
-            أنت خبير ومحلل عقاري نخبوي في المغرب. حلل هذا العقار بالدارجة المغربية بناءً على الصورة والنص.
+            أنت خبير ومحلل عقاري نخبوي في المغرب. حلل هذا العقار بالدارجة المغربية بتركيز عالي واختصار.
             
-            المعطيات من النص: {json.dumps(deal, ensure_ascii=False)}
-
-            المطلوب تقرير منظم كالتالي:
+            المطلوب تقرير منظم (أقل من 800 حرف) كالتالي:
             💎 <b>[اسم العقار]</b>
-            💰 <b>الثمن بالملايين:</b> [حول الثمن لمليون مغربي بدقة]
-            📍 <b>الموقع:</b> [استخرج الموقع]
+            💰 <b>الثمن بالملايين:</b> [حول الثمن لمليون]
+            📍 <b>الموقع:</b> [الموقع]
 
-            📊 <b>تحليل النخبة:</b> [حلل الفينيسيون، الحالة، وهل السعر مناسب لما يظهر في الصورة؟]
+            📊 <b>تحليل النخبة:</b> [الزبدة: الفينيسيون والحالة بتركيز]
 
             ✅ <b>المميزات:</b>
-            - [من الصورة]
-            - [من النص]
+            - [أهم ميزة]
 
             ❌ <b>العيوب:</b>
-            - [شيء سلبي تلاحظه]
+            - [أهم عيب]
 
-            📞 <b>للتواصل:</b> Contact via link
             🔗 <b>الرابط:</b> {deal['link']}
-            
-            استعمل فقط وسم <b> و </b> للتغليظ.
             """
 
             try:
-                # تحميل الصورة كـ Bytes لتفادي ValidationError
                 image_resp = requests.get(deal['image'])
                 image_bytes = image_resp.content
 
-                # بناء الـ Contents بالطريقة الصحيحة للـ SDK الجديد
                 contents = [
                     types.Part.from_text(text=elite_prompt),
                     types.Part.from_bytes(data=image_bytes, mime_type='image/jpeg')
                 ]
 
-                # الاستدعاء النخبوي
                 response = client.models.generate_content(
                     model=CONFIG["MODEL_ID"],
                     contents=contents
@@ -139,11 +132,9 @@ class UltimateVisionHunter:
                 
                 report = response.text
                 self.send_to_telegram(report, deal['image'])
-                
-                # راحة تقنية لحماية الكوطا
                 time.sleep(CONFIG["WAIT_BETWEEN_DEALS"])
             except Exception as e:
-                self.log(f"خطأ فـ Gemini Vision: {e}", "ERROR")
+                self.log(f"خطأ فـ Gemini: {e}", "ERROR")
 
     def run(self):
         try:
