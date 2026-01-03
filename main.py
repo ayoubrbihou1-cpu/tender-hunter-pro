@@ -2,28 +2,23 @@ import os
 import time
 import json
 import requests
-import google.generativeai as genai
+from google import genai  # المكتبة الجديدة لـ 2026
 from seleniumbase import Driver
 from datetime import datetime
 
-# --- إعدادات مركز القيادة (The Config) ---
+# --- إعدادات مركز القيادة العليا ---
 CONFIG = {
-    # السكريبت غايقلب على GEMINI_API_KEY فـ السرفر
     "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY"),
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
     "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     "TARGET_URL": "https://www.facebook.com/marketplace/fez/propertyrentals/?exact=false",
-    "GEMINI_MODEL": "gemini-1.5-flash"
+    "MODEL_ID": "gemini-3-pro-preview" # الموديل القناص
 }
 
-# إقلاع محرك Gemini
-if CONFIG["GEMINI_API_KEY"]:
-    genai.configure(api_key=CONFIG["GEMINI_API_KEY"])
-    model = genai.GenerativeModel(CONFIG["GEMINI_MODEL"])
-else:
-    print("❌ Error: GEMINI_API_KEY is missing!")
+# إقلاع محرك Gemini 3
+client = genai.Client(api_key=CONFIG["GEMINI_API_KEY"])
 
-class EliteGeminiHunter:
+class EliteGemini3Hunter:
     def __init__(self):
         self.driver = None
         self.deals = []
@@ -32,7 +27,7 @@ class EliteGeminiHunter:
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [{status}] 🛡️ {msg}")
 
     def init_session(self):
-        """إقلاع المحرك وزرع الكوكيز بلا مشاكل sameSite"""
+        """اختراق الجلسة بوضعية الشبح"""
         self.log("إقلاع المحرك UC Mode...")
         self.driver = Driver(uc=True, headless=True)
         try:
@@ -47,50 +42,65 @@ class EliteGeminiHunter:
                     except: continue
             self.driver.refresh()
             time.sleep(5)
+            self.log("تم تأكيد الهوية الرقمية بنجاح.")
         except Exception as e:
-            self.log(f"خطأ فـ الجلسة: {e}", "ERROR")
+            self.log(f"فشل فـ الجلسة: {e}", "ERROR")
 
     def hunt_listings(self):
-        """قنص الداتا الخام"""
-        self.log(f"الذهاب للهدف: {CONFIG['TARGET_URL']}")
+        """قنص الهمزات من ماركت بلايس فاس"""
+        self.log(f"التوجه للهدف: {CONFIG['TARGET_URL']}")
         self.driver.get(CONFIG["TARGET_URL"])
         time.sleep(15)
         self.driver.execute_script("window.scrollTo(0, 800);")
-        time.sleep(3)
-        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')
-        self.log(f"تم رصد {len(cards)} إعلان.")
+        time.sleep(5)
+        
+        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')[:5]
+        self.log(f"تم رصد {len(cards)} إعلان. جاري الاستخراج المعزول...")
 
-        for card in cards[:6]:
+        # فصل البيانات لتفادي stale element reference
+        for card in cards:
             try:
                 img = card.find_element("css selector", "img").get_attribute("src")
                 raw_text = card.text.split('\n')
                 link = card.find_element("css selector", "a").get_attribute("href").split('?')[0]
                 if "/marketplace/item/" in link and len(raw_text) >= 2:
-                    self.deals.append({"price": raw_text[0], "title": raw_text[1], "link": link, "image": img})
+                    self.deals.append({
+                        "price": raw_text[0],
+                        "title": raw_text[1],
+                        "link": link,
+                        "image": img
+                    })
             except: continue
 
     def analyze_and_broadcast(self):
-        """التحليل بـ Gemini والإرسال لتيليغرام"""
+        """التحليل بذكاء Gemini 3"""
         for deal in self.deals:
-            prompt = f"حلل هاد العقار من JSON: {json.dumps(deal, ensure_ascii=False)}. حول الثمن لـ 'مليون'، ونظم التقرير بالدارجة المغربية مع Pros & Cons."
+            self.log(f"Gemini 3 كايحلل: {deal['title'][:20]}...")
+            prompt = f"Analyze this property: {json.dumps(deal, ensure_ascii=False)}. Write a high-level Business Darija report with Million conversion and Pros/Cons."
             try:
-                response = model.generate_content(prompt)
+                # الاستدعاء النخبوي الجديد
+                response = client.models.generate_content(
+                    model=CONFIG["MODEL_ID"],
+                    contents=prompt
+                )
                 report = response.text
-                url = f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto"
-                requests.post(url, json={"chat_id": CONFIG["TELEGRAM_CHAT_ID"], "photo": deal['image'], "caption": report, "parse_mode": "Markdown"})
-                self.log(f"✅ تم إرسال: {deal['title'][:20]}")
+                
+                # إرسال البطاقة لتيليغرام
+                requests.post(f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto", 
+                             json={"chat_id": CONFIG["TELEGRAM_CHAT_ID"], "photo": deal['image'], "caption": report, "parse_mode": "Markdown"})
+                self.log(f"✅ تم الإرسال بنجاح.")
                 time.sleep(2)
             except Exception as e:
-                self.log(f"خطأ AI: {e}", "WARNING")
+                self.log(f"خطأ فـ Gemini 3: {e}", "WARNING")
 
     def run(self):
-        """الدالة الأساسية اللي كتحرك كولشي"""
         try:
             self.init_session()
             self.hunt_listings()
             self.analyze_and_broadcast()
         finally:
             if self.driver: self.driver.quit()
+            self.log("نهاية المهمة.")
 
 if __name__ == "__main__":
-    EliteGeminiHunter().run() # هاد السمية خاصها تكون بحال سمية الدالة الفوق
+    EliteGemini3Hunter().run()
