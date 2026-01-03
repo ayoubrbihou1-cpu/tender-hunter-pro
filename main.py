@@ -7,36 +7,34 @@ from seleniumbase import Driver
 from groq import Groq
 from datetime import datetime
 
-# --- الإعدادات النخبوية (v3.0) ---
+# --- البركوتوكول الأمني والإعدادات ---
 CONFIG = {
     "GROQ_API_KEY": os.getenv("GROQ_API_KEY"),
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
     "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     "TARGET_URL": "https://web.facebook.com/marketplace/casablanca/propertyforsale",
-    "AI_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct", # الموديل الجديد ديالك
-    "MAX_RETRIES": 3,  # عدد محاولات التواصل مع AI في حالة الضغط
-    "WAIT_TIME": 10    # ثواني الانتظار بين المحاولات
+    "AI_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct", # الموديل العملاق ديالك
+    "MAX_DEALS": 5, # كنركزو على الجودة ماشي الكمية
+    "RETRY_ATTEMPTS": 3
 }
 
 client = Groq(api_key=CONFIG["GROQ_API_KEY"])
 
-class EliteRealEstateHunter:
+class EliteHunterV4:
     def __init__(self):
         self.driver = None
-        self.raw_data = []
+        self.processed_deals = []
 
-    def log(self, action, status="INFO"):
-        """نظام تتبع احترافي للعمليات"""
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{timestamp}] [{status}] 🛠️ {action}")
+    def log(self, msg, level="INFO"):
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] [{level}] 🛡️ {msg}")
 
-    def start_engine(self):
-        """تشغيل المتصفح بوضعية الشبح المتطورة"""
-        self.log("إقلاع المحرك بوضعية التخفي UC...")
+    def boot_system(self):
+        """تشغيل المحرك بوضعية التخفي القصوى"""
+        self.log("إقلاع المحرك الشبح (UC Mode)...")
         self.driver = Driver(uc=True, headless=True)
 
-    def session_hijack(self):
-        """زرع الكوكيز لتجاوز جدار الحماية"""
+    def bypass_security(self):
+        """زرع الكوكيز واختراق الجلسة"""
         try:
             self.driver.get("https://web.facebook.com")
             with open("cookies.json", "r") as f:
@@ -47,99 +45,112 @@ class EliteRealEstateHunter:
                     self.driver.add_cookie(cookie)
             self.driver.refresh()
             time.sleep(5)
-            self.log("تم اختراق الجلسة بنجاح واسترجاع الهوية.")
+            self.log("تم تأكيد الهوية الرقمية بنجاح.")
         except Exception as e:
-            self.log(f"فشل في زرع الكوكيز: {e}", "ERROR")
+            self.log(f"خطأ في الكوكيز: {e}", "ERROR")
             raise
 
-    def capture_listings(self):
-        """قنص البيانات الخام وتنظيفها قبل التحليل"""
-        self.log(f"الذهاب للهدف: {CONFIG['TARGET_URL']}")
+    def hunt_marketplace(self):
+        """قنص الإعلانات وتنظيمها في هيكل بيانات نظيف"""
+        self.log(f"الذهاب للهدف العقاري: {CONFIG['TARGET_URL']}")
         self.driver.get(CONFIG["TARGET_URL"])
+        time.sleep(random.uniform(10, 15))
         
-        # انتظار عشوائي لتجنب البلوك
-        time.sleep(random.uniform(10, 20))
-        
-        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')
-        self.log(f"تم رصد {len(cards)} إعلان محتمل.")
+        # التمرير (Scrolling) لجلب أحدث الهمزات
+        self.driver.execute_script("window.scrollTo(0, 500);")
+        time.sleep(3)
 
-        for card in cards[:12]:
+        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')
+        self.log(f"تم رصد {len(cards)} إعلان. جاري التصفية النخبوية...")
+
+        for card in cards:
+            if len(self.processed_deals) >= CONFIG["MAX_DEALS"]: break
             try:
-                # استخراج النصوص والصورة (للتحليل البصري مستقبلاً)
-                lines = card.text.split('\n')
+                # استخراج البيانات الأساسية
+                raw_text = card.text.split('\n')
+                if len(raw_text) < 2: continue
+                
                 link = card.find_element("css selector", "a").get_attribute("href").split('?')[0]
                 
-                # تنظيم الداتا في هيكل JSON نظيف
-                self.raw_data.append({
-                    "title": lines[1] if len(lines) > 1 else "بدون عنوان",
-                    "price": lines[0],
-                    "location": lines[2] if len(lines) > 2 else "غير محدد",
-                    "link": link
-                })
+                deal = {
+                    "price": raw_text[0],
+                    "title": raw_text[1],
+                    "location": raw_text[2] if len(raw_text) > 2 else "غير محدد",
+                    "link": link,
+                    "timestamp": datetime.now().isoformat()
+                }
+                self.processed_deals.append(deal)
+                self.log(f"تم قنص: {deal['title'][:30]}")
             except: continue
-        self.log(f"تم تنظيف {len(self.raw_data)} إعلان بنجاح.")
 
-    def analyze_with_scout(self):
-        """تحليل البيانات باستخدام Llama-4-Scout مع بروتوكول الانتظار"""
-        if not self.raw_data:
-            return "🤷‍♂️ لم يتم العثور على بيانات في هذه الدورة."
+    def analyze_deals_deeply(self):
+        """تحليل الصفقات باستعمال Llama-4 Scout (الجدول والتحليل)"""
+        if not self.processed_deals:
+            return "🤷‍♂️ الساحة خاوية هاد الساعة، ما كاينش همزات."
 
-        self.log(f"بدء التحليل باستخدام {CONFIG['AI_MODEL']}...")
-        formatted_json = json.dumps(self.raw_data, ensure_ascii=False)
+        self.log(f"بدء التحليل العميق بـ {CONFIG['AI_MODEL']}...")
+        deals_json = json.dumps(self.processed_deals, ensure_ascii=False)
 
         prompt = f"""
-        Analyze these Moroccan real estate listings: {formatted_json}
-        Identify the Top 3 "Hamzat" based on price/location.
-        Respond in high-level Moroccan Business Darija.
-        Format: 
-        🏠 Title
-        💰 Analysis of Price (Comparison)
-        🔗 Link
+        Analyze these Moroccan Real Estate deals: {deals_json}
+        
+        Task: 
+        1. Compare price vs location for each deal.
+        2. Create a "Pros & Cons" table for the top 3 deals.
+        3. Response must be in Professional Moroccan Business Darija.
+        
+        Format for each deal:
+        💎 **[اسم الهمزة]**
+        📊 **تحليل النخبة:** (لماذا هي همزة؟)
+        ✅ **المميزات (Pros):** (نقطتين)
+        ❌ **العيوب/المخاطر (Cons):** (نقطة واحدة)
+        💰 **السعر والموقع:** (بوضوح)
+        🔗 **رابط القناص:** [الرابط]
         """
 
-        for attempt in range(CONFIG["MAX_RETRIES"]):
+        for i in range(CONFIG["RETRY_ATTEMPTS"]):
             try:
-                # طلب التحليل من Groq
                 completion = client.chat.completions.create(
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[{"role": "system", "content": "You are a Master Moroccan Real Estate Advisor."},
+                              {"role": "user", "content": prompt}],
                     model=CONFIG["AI_MODEL"],
-                    temperature=0.1 # دقة عالية جداً
+                    temperature=0.1 # دقة مطلقة
                 )
                 return completion.choices[0].message.content
             except Exception as e:
-                self.log(f"محاولة {attempt + 1} فشلت: AI يحتاج وقت للتفكير. الانتظار {CONFIG['WAIT_TIME']} ثواني...", "WARNING")
-                time.sleep(CONFIG["WAIT_TIME"])
-        
-        return "❌ فشل النظام في الحصول على تحليل بعد عدة محاولات."
+                self.log(f"AI مضغوط، محاولة {i+1}... انتظار 10 ثواني", "WARNING")
+                time.sleep(10)
+        return "❌ فشل النظام في التواصل مع العقل المدبر."
 
-    def broadcast(self, report):
-        """إرسال النتيجة النهائية لمركز القيادة في تيليغرام"""
+    def broadcast_report(self, report):
+        """إرسال التقرير النهائي المنظم لتيليغرام"""
         url = f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendMessage"
         payload = {
             "chat_id": CONFIG["TELEGRAM_CHAT_ID"], 
-            "text": f"💎 **تقرير القناص النخبوي (Llama-4 Scout)**\n\n{report}", 
+            "text": f"🚀 **تقرير القناص النخبوي V4**\n\n{report}", 
             "parse_mode": "Markdown"
         }
         try:
             requests.post(url, json=payload, timeout=10)
-            self.log("تم إرسال التقرير بنجاح لتيليغرام.")
+            self.log("التقرير مشى لمركز القيادة بنجاح.")
         except Exception as e:
-            self.log(f"خطأ في الإرسال: {e}", "ERROR")
+            self.log(f"خطأ في الإرسال لتيليغرام: {e}", "ERROR")
 
-    def run_mission(self):
-        """تشغيل العملية المتكاملة من الألف إلى الياء"""
+    def execute_mission(self):
+        """تشغيل الماكينة من الألف إلى الياء بنظام"""
         try:
-            self.start_engine()
-            self.session_hijack()
-            self.capture_listings()
-            final_report = self.analyze_with_scout()
-            self.broadcast(final_report)
+            self.boot_system()
+            self.bypass_security()
+            self.hunt_marketplace()
+            report = self.analyze_deals_deeply()
+            self.broadcast_report(report)
+        except Exception as e:
+            self.log(f"انهيار في النظام: {e}", "CRITICAL")
         finally:
             if self.driver:
                 self.driver.quit()
                 self.log("إغلاق المحرك بسلام.")
 
 if __name__ == "__main__":
-    print("--- 🏁 انطلاق المهمة النخبوية ---")
-    Hunter = EliteRealEstateHunter()
-    Hunter.run_mission()
+    print("--- 🏁 انطلاق النظام النخبوي (The Final System) ---")
+    EliteHunterV4().execute_mission()
