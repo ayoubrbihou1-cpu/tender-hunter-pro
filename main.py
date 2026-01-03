@@ -1,14 +1,13 @@
 import os
 import time
-import random
 import json
 import requests
-import re
+import html # مكتبة رسمية لتنظيف HTML
 from google import genai 
 from seleniumbase import Driver
 from datetime import datetime
 
-# --- بروتوكول الإعدادات النخبوية ---
+# --- بروتوكول الإعدادات العليا ---
 CONFIG = {
     "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY"),
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
@@ -20,7 +19,7 @@ CONFIG = {
 
 client = genai.Client(api_key=CONFIG["GEMINI_API_KEY"])
 
-class UltimateEliteHunter:
+class UltimateHTMLHunter:
     def __init__(self):
         self.driver = None
         self.deals = []
@@ -28,14 +27,8 @@ class UltimateEliteHunter:
     def log(self, msg, status="INFO"):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [{status}] 🛡️ {msg}")
 
-    def escape_markdown(self, text):
-        """تجهيز النص لتيليغرام وتفادي الرموز القاتلة"""
-        escape_chars = r'_*[]()~`>#+-=|{}.!'
-        return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
-
     def init_session(self):
-        """اختراق الجلسة بوضعية الشبح"""
-        self.log("إقلاع المحرك الفولاذي...")
+        self.log("إقلاع المحرك الفولاذي (V14)...")
         self.driver = Driver(uc=True, headless=True)
         try:
             self.driver.get("https://web.facebook.com")
@@ -50,11 +43,10 @@ class UltimateEliteHunter:
             time.sleep(5)
             self.log("تم تأكيد الهوية الرقمية.")
         except Exception as e:
-            self.log(f"فشل في زرع الكوكيز: {e}", "CRITICAL")
+            self.log(f"فشل الجلسة: {e}", "CRITICAL")
             raise
 
     def hunt_listings(self):
-        """قنص الهمزات من ماركت بلايس فاس"""
         self.log(f"التوجه للهدف: {CONFIG['TARGET_URL']}")
         self.driver.get(CONFIG["TARGET_URL"])
         time.sleep(15)
@@ -71,49 +63,47 @@ class UltimateEliteHunter:
             except: continue
         self.log(f"تم قنص {len(self.deals)} بطاقات.")
 
-    def send_safe_telegram(self, report, photo_url):
-        """إرسال ذكي مع حل مشكلة الـ f-string"""
+    def send_to_telegram(self, report, image_url):
+        """إرسال بنظام HTML المستقر 100%"""
         url = f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto"
         
-        # 1. الميساج المنسق بـ MarkdownV2
+        # تنظيف النص ليتوافق مع HTML تيليغرام
+        safe_report = html.escape(report).replace('&lt;b&gt;', '<b>').replace('&lt;/b&gt;', '</b>')
+        
         payload = {
             "chat_id": CONFIG["TELEGRAM_CHAT_ID"],
-            "photo": photo_url,
-            "caption": report,
-            "parse_mode": "MarkdownV2"
+            "photo": image_url,
+            "caption": safe_report,
+            "parse_mode": "HTML"
         }
         
         try:
             res = requests.post(url, json=payload, timeout=15)
             if res.status_code == 200:
-                self.log("✅ تم الإرسال الفعلي لتيليغرام.")
+                self.log("✅ تم الإرسال الفعلي بنظام HTML.")
             else:
-                self.log(f"❌ تنسيق مرفوض (Code {res.status_code}). كنصيفط نص عادي...", "WARNING")
-                # تصحيح الخطأ: معالجة النص خارج الـ f-string لتفادي SyntaxError
-                clean_text = report.replace('\\', '')
-                fallback_caption = f"⚠️ همزة جديدة (تنسيق مبسط):\n{clean_text}"
-                
-                requests.post(url, json={
-                    "chat_id": CONFIG["TELEGRAM_CHAT_ID"],
-                    "photo": photo_url,
-                    "caption": fallback_caption
-                })
+                self.log(f"❌ خطأ تيليغرام: {res.text}", "ERROR")
         except Exception as e:
-            self.log(f"خطأ تقني ف تيليغرام: {e}", "ERROR")
+            self.log(f"خطأ تقني: {e}", "ERROR")
 
     def analyze_and_broadcast(self):
-        """التحليل النخبوي بـ Gemini 2.5 Flash"""
         for i, deal in enumerate(self.deals):
             self.log(f"تحليل الهمزة {i+1}/{len(self.deals)}...")
-            prompt = f"Analyze this Fez property: {json.dumps(deal, ensure_ascii=False)}. Convert price to Million and write a Professional Business Darija report."
+            
+            # برومبت يفرض وسوم HTML بسيطة
+            prompt = f"""
+            Analyze this property: {json.dumps(deal, ensure_ascii=False)}
+            Output MUST be in Moroccan Darija. Use ONLY <b> tags for bolding.
+            Example: <b>[Title]</b>
+            """
+            
             try:
                 response = client.models.generate_content(model=CONFIG["MODEL_ID"], contents=prompt)
-                raw_report = response.text
-                safe_report = self.escape_markdown(raw_report)
-                self.send_safe_telegram(safe_report, deal['image'])
+                report = response.text
+                self.send_to_telegram(report, deal['image'])
                 time.sleep(CONFIG["WAIT_BETWEEN_DEALS"])
             except Exception as e:
-                self.log(f"خطأ في التحليل: {e}", "ERROR")
+                self.log(f"خطأ Gemini: {e}", "ERROR")
 
     def run(self):
         try:
@@ -124,4 +114,4 @@ class UltimateEliteHunter:
             if self.driver: self.driver.quit()
 
 if __name__ == "__main__":
-    UltimateEliteHunter().run()
+    UltimateHTMLHunter().run()
