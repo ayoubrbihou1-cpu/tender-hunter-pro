@@ -7,34 +7,29 @@ from seleniumbase import Driver
 from groq import Groq
 from datetime import datetime
 
-# --- إعدادات مركز العمليات ---
+# --- إعدادات مركز القيادة ---
 CONFIG = {
     "GROQ_API_KEY": os.getenv("GROQ_API_KEY"),
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
     "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     "TARGET_URL": "https://web.facebook.com/marketplace/casablanca/propertyforsale",
-    "AI_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct",
-    "LOOP_REST_SEC": 180,  # الراحة ديال 3 دقائق بين كل دورة
-    "PAGE_LOAD_WAIT": 10   # زدنا الوقت لـ 10 ثواني باش التصاور يبانو 100%
+    "AI_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct"
 }
 
 client = Groq(api_key=CONFIG["GROQ_API_KEY"])
 
-class EliteHunterSystem:
+class OneShotDebugHunter:
     def __init__(self):
         self.driver = None
         self.valid_samesite = ["Strict", "Lax", "None"]
 
-    def log(self, action, status="INFO"):
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [{status}] 🛠️ {action}")
+    def log(self, action, status="DEBUG"):
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] [{status}] 🕵️ {action}")
 
-    def boot_driver(self):
-        """إقلاع المتصفح بوضعية التخفي"""
-        self.log("إقلاع المحرك الشبح...")
-        self.driver = Driver(uc=True, headless=True)
-
-    def session_inject(self):
-        """زرع الكوكيز مع تنظيف الـ SameSite لتفادي الـ AssertionError"""
+    def boot_and_inject(self):
+        """إقلاع المتصفح وزرع الكوكيز"""
+        self.log("إقلاع المحرك...")
+        self.driver = Driver(uc=True, headless=True) # خليه Headless حيت حنا فـ Codespace
         try:
             self.driver.get("https://web.facebook.com")
             with open("cookies.json", "r") as f:
@@ -46,97 +41,88 @@ class EliteHunterSystem:
                     except: continue
             self.driver.refresh()
             time.sleep(5)
-            self.log("تم اختراق الجلسة وتأكيد الهوية الرقمية.")
+            # سكرين شوت باش نتأكدوا باللي دخلنا لفيسبوك (Logged in)
+            self.driver.save_screenshot("debug_1_facebook_home.png")
+            self.log("تم زرع الكوكيز. سكرين شوت (1) واجدة.")
         except Exception as e:
-            self.log(f"خطأ فادح في الكوكيز: {e}", "ERROR")
+            self.log(f"خطأ في الكوكيز: {e}", "ERROR")
 
-    def hunt_cycle(self):
-        """دورة قنص واحدة منظمة"""
-        self.log(f"انطلاق دورة البحث فـ الماركت بلايس...")
+    def run_debug_cycle(self):
+        """دورة واحدة فقط للفحص الشامل"""
+        self.log(f"الذهاب للماركت بلايس: {CONFIG['TARGET_URL']}")
         self.driver.get(CONFIG["TARGET_URL"])
-        time.sleep(CONFIG["PAGE_LOAD_WAIT"])
+        time.sleep(12)
         
-        # سكرول خفيف باش نجبدو همزات جداد
-        self.driver.execute_script("window.scrollTo(0, 1000);")
-        time.sleep(5)
+        # سكرين شوت للماركت بلايس قبل أي حاجة
+        self.driver.save_screenshot("debug_2_marketplace_main.png")
+        self.log("وصلنا للماركت بلايس. سكرين شوت (2) واجدة.")
 
-        listing_elements = self.driver.find_elements("css selector", 'div[style*="max-width"]')[:5]
-        item_links = []
-        for el in listing_elements:
-            try: item_links.append(el.find_element("css selector", "a").get_attribute("href"))
-            except: continue
+        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')[:3] # غانجربو فـ 3 فقط
         
-        self.log(f"لقينا {len(item_links)} روابط أولية. بادي الفحص العميق...")
+        if not cards:
+            self.log("❌ مالقينا حتى بطاقة إعلان! الصفحة خاوية أو الـ Selector تبدل.", "ERROR")
+            return
 
-        for link in item_links:
+        for i, card in enumerate(cards):
             try:
-                self.log(f"دخول لوسط الإعلان: {link[:40]}...")
-                self.driver.get(link)
-                time.sleep(CONFIG["PAGE_LOAD_WAIT"]) # انتظار 10 ثواني باش يتحملو كاع الصور
-                
-                # قنص الصور
-                img_elements = self.driver.find_elements("css selector", 'img[alt*="Property"]') or \
-                               self.driver.find_elements("css selector", 'div[role="img"] img')
-                photos = list(set([img.get_attribute("src") for img in img_elements if img.get_attribute("src")]))[:6]
-                
-                if not photos:
-                    self.log("الإعلان خاوي من الصور، كنتجاوزوه.", "WARNING")
-                    continue
+                cover_img = card.find_element("css selector", "img").get_attribute("src")
+                link = card.find_element("css selector", "a").get_attribute("href")
+                title = card.text.split('\n')[1] if len(card.text.split('\n')) > 1 else "عقار"
 
-                # تحليل AI
-                self.process_with_ai(photos, link, driver_title=self.driver.title)
+                self.log(f"دخول عميق للإعلان رقم {i+1}: {title[:20]}")
+                self.driver.get(link)
+                time.sleep(10) # انتظار طويل للتأكد من التحميل
+                
+                # سكرين شوت لوسط الإعلان
+                self.driver.save_screenshot(f"debug_3_item_{i+1}_inside.png")
+                
+                # البحث عن الصور بجميع الطرق الممكنة
+                all_photos = []
+                selectors = ['img[src*="fbcdn"]', 'img[alt*="Property"]', 'div[role="img"] img']
+                for selector in selectors:
+                    found = self.driver.find_elements("css selector", selector)
+                    all_photos.extend([img.get_attribute("src") for img in found if img.get_attribute("src")])
+                
+                final_photos = list(set([p for p in all_photos if p]))[:6]
+
+                if not final_photos:
+                    self.log(f"⚠️ الإعلان رقم {i+1} بان لينا خاوي لداخل. الصور ما بانوش.", "WARNING")
+                    final_photos = [cover_img] if cover_img else []
+
+                # تحليل AI وإرسال
+                if final_photos:
+                    self.process_with_ai(final_photos, link, title)
                 
             except Exception as e:
-                self.log(f"مشكلة فـ هاد الإعلان: {e}", "WARNING")
-                continue
+                self.log(f"فشل في الإعلان {i+1}: {e}", "ERROR")
 
-    def process_with_ai(self, photos, link, driver_title):
-        """إرسال الداتا لـ Llama-4 Scout والتحليل العميق"""
-        self.log(f"AI كايحلل {len(photos)} صورة دابا... (كايحتاج وقت)")
+    def process_with_ai(self, photos, link, title):
+        self.log(f"AI كايحلل {len(photos)} صورة...")
+        img_contents = [{"type": "image_url", "image_url": {"url": url}} for url in photos if url]
+        prompt = f"حلل هاد العقار ({title}) حول الثمن للملايين وعطيني Pros & Cons بالدارجة. الرابط: {link.split('?')[0]}"
         
-        img_contents = [{"type": "image_url", "image_url": {"url": url}} for url in photos]
-        prompt = f"""
-        حلل كاع هاد الصور لهاد العقار: {driver_title}.
-        المطلوب بطريقة منظمة:
-        1. حول الثمن لـ "الملايين" (مثلا 750,000 تولي 75 مليون).
-        2. تحليل جودة الفينيسيون من خلال كاع الزوايا.
-        3. جدول Pros & Cons بالدارجة النخبوية.
-        4. الرابط بوضوح: {link.split('?')[0]}
-        """
-        
-        content = [{"type": "text", "text": prompt}] + img_contents
-
         try:
             completion = client.chat.completions.create(
-                messages=[{"role": "user", "content": content}],
+                messages=[{"role": "user", "content": [{"type": "text", "text": prompt}] + img_contents}],
                 model=CONFIG["AI_MODEL"],
                 temperature=0.1
             )
             report = completion.choices[0].message.content
-            self.send_telegram(report, photos[0])
+            # إرسال لتيليغرام
+            requests.post(f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto", 
+                         json={"chat_id": CONFIG["TELEGRAM_CHAT_ID"], "photo": photos[0], "caption": report, "parse_mode": "Markdown"})
+            self.log(f"✅ تم إرسال التقرير بنجاح لتيليغرام.")
         except Exception as e:
-            self.log(f"خطأ فـ تواصل AI: {e}", "ERROR")
+            self.log(f"خطأ AI: {e}", "ERROR")
 
-    def send_telegram(self, message, image_url):
-        url = f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto"
-        payload = {"chat_id": CONFIG["TELEGRAM_CHAT_ID"], "photo": image_url, "caption": message, "parse_mode": "Markdown"}
-        requests.post(url, json=payload, timeout=15)
-        self.log("تم إرسال البطاقة بنجاح لتيليغرام ✅")
-
-    def start_infinite_loop(self):
-        """نظام الدورات اللامتناهي مع استراحة 3 دقائق"""
-        while True:
-            try:
-                self.boot_driver()
-                self.session_inject()
-                self.hunt_cycle()
-            except Exception as e:
-                self.log(f"انهيار فـ الدورة: {e}", "CRITICAL")
-            finally:
-                if self.driver: self.driver.quit()
-                self.log(f"☕ استراحة {CONFIG['LOOP_REST_SEC']/60} دقائق قبل الدورة الجاية...")
-                time.sleep(CONFIG["LOOP_REST_SEC"])
+    def execute(self):
+        try:
+            self.boot_and_inject()
+            self.run_debug_cycle()
+        finally:
+            if self.driver:
+                self.driver.quit()
+                self.log("إغلاق المتصفح. انتهت الدورة الواحدة.")
 
 if __name__ == "__main__":
-    print("--- 🏁 انطلاق نظام القنص اللامتناهي V7 ---")
-    EliteHunterSystem().start_infinite_loop()
+    OneShotDebugHunter().execute()
