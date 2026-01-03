@@ -37,7 +37,7 @@ class DeepScoutHunter:
         return None, raw_link
 
     def init_session(self):
-        self.log("إقلاع المحرك الجراحي العميق (V18.1 - Fixed)...")
+        self.log("إقلاع المحرك الجراحي العميق (V18.2 - Fixed Selector)...")
         self.driver = Driver(uc=True, headless=True)
         try:
             self.driver.get("https://web.facebook.com")
@@ -65,7 +65,6 @@ class DeepScoutHunter:
             try:
                 link_elem = card.find_element("css selector", "a")
                 item_id, clean_link = self.clean_fb_link(link_elem.get_attribute("href"))
-                
                 if item_id and item_id not in self.processed_ids:
                     self.deals.append({"id": item_id, "link": clean_link})
                     self.processed_ids.add(item_id)
@@ -79,42 +78,53 @@ class DeepScoutHunter:
                 self.driver.get(deal['link'])
                 time.sleep(10)
 
-                # --- تصحيح عصب الخطأ: استخراج الصورة بنظام الفلترة (Robust Selection) ---
+                # 1. استخراج الصورة بنظام الـ Robust Selector (تفادي Error image_a0f1ce)
                 try:
-                    # كنقلبو على أول صورة كبيرة ف الصفحة ماشي ب الـ alt
-                    main_img_elem = self.driver.find_element("css selector", "div[role='main'] img[src*='fbcdn']")
-                    main_img = main_img_elem.get_attribute("src")
+                    main_img = self.driver.find_element("css selector", "div[role='main'] img[src*='fbcdn']").get_attribute("src")
                 except:
-                    self.log("⚠️ فشل Selector الصورة الأول، كنحاول البديل...", "WARNING")
                     main_img = self.driver.find_element("css selector", "img[cursor='pointer']").get_attribute("src")
 
-                # فتح الـ Description كاملة
+                # 2. فتح الـ Description كاملة (Voir plus)
                 try:
-                    see_more = self.driver.find_element("xpath", "//span[contains(text(), 'Voir plus') or contains(text(), 'See more')]")
+                    see_more_xpath = "//span[contains(text(), 'Voir plus') or contains(text(), 'See more') or contains(text(), 'عرض المزيد')]"
+                    see_more = self.driver.find_element("xpath", see_more_xpath)
                     self.driver.execute_script("arguments[0].click();", see_more)
                     time.sleep(2)
                 except: pass
 
-                full_desc = self.driver.find_element("css selector", "div[dir='auto']").text
-                
+                # 3. استخراج الـ Description بنظام الفلترة المتعددة (حل Error image_a0f9f0)
+                try:
+                    # كنحاولوا نجلبوا النص من الحاوية اللي فيها الـ Description الحقيقية
+                    description_elements = self.driver.find_elements("css selector", "span[dir='auto'], div[dir='auto']")
+                    full_desc = " ".join([el.text for el in description_elements if len(el.text) > 50])
+                    if not full_desc:
+                        full_desc = self.driver.find_element("css selector", "div.xz9dl7a.x4uap5.xsag5q8.xkhd6sd.x126k92a").text
+                except:
+                    full_desc = "تعذر استخراج الوصف التفصيلي."
+
+                # 4. برومبت خبير العقارات النخبوي
                 elite_prompt = f"""
-                أنت 'المرشد الأعظم' خبير العقارات في المغرب. حلل هذا الإعلان بعمق بالدارجة المغربية:
-                الوصف: {full_desc}
+                أنت 'المرشد الأعظم' محلل العقارات النخبوي في المغرب. حلل هذا العقار بعمق بالدارجة المغربية:
+                الوصف الكامل: {full_desc}
                 الرابط: {deal['link']}
 
-                المطلوب:
-                💎 <b>[عنوان ذكي]</b>
-                💰 <b>الثمن بالملايين:</b>
-                📍 <b>الموقع:</b>
-                📞 <b>الهاتف:</b> [استخرجه بدقة من النص]
+                المطلوب تقرير منظم بحال هكا:
+                💎 <b>[عنوان نخبوي للعقار]</b>
+                💰 <b>الثمن بالملايين:</b> [حول الثمن بدقة لمليون مغربي]
+                📍 <b>الموقع:</b> [تحديد الحي]
+                📞 <b>الهاتف:</b> [استخرج الرقم بدقة، إذا لم يوجد قل 'Contact via link']
+
                 📊 <b>تحليل جودة الفينيسيون (الأرضية، المطبخ، الحمام):</b>
-                🎯 <b>رأي الخبير:</b> [هل هو أفضل اقتراح؟]
-                ✅ <b>المميزات:</b>
-                ❌ <b>العيوب:</b>
-                🔗 <b>الرابط:</b> {deal['link']}
+                - [تحليل دقيق بناء على النص والصورة]
+                
+                🎯 <b>رأي الخبير (Verdict):</b> [هل هو أفضل اقتراح؟ وما هو أفضل استغلال له؟]
+                ✅ <b>المميزات:</b> (نقطتين)
+                ❌ <b>العيوب:</b> (نقطة واحدة)
+
+                🔗 <b>الرابط المباشر:</b> {deal['link']}
                 """
 
-                # التحليل البصري
+                # التحليل البصري بـ Gemini Vision
                 image_bytes = requests.get(main_img).content
                 contents = [
                     types.Part.from_text(text=elite_prompt),
