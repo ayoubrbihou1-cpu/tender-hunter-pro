@@ -2,7 +2,8 @@ import os
 import time
 import json
 import requests
-from google import genai # المكتبة الجديدة كلياً
+import re # لإضافة نظام تنظيف الرموز
+from google import genai 
 from seleniumbase import Driver
 from datetime import datetime
 
@@ -12,11 +13,10 @@ CONFIG = {
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
     "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     "TARGET_URL": "https://www.facebook.com/marketplace/fez/propertyrentals/?exact=false",
-    "MODEL_ID": "gemini-2.5-flash", # الموديل المعتمد فـ الصورة
-    "WAIT_BETWEEN_DEALS": 65 # نظام حماية الكوطا
+    "MODEL_ID": "gemini-2.5-flash", # الموديل المعتمد
+    "WAIT_BETWEEN_DEALS": 65 # حماية الكوطا
 }
 
-# إقلاع عميل Gemini بالطريقة الجديدة
 client = genai.Client(api_key=CONFIG["GEMINI_API_KEY"])
 
 class UltimateGeminiHunter:
@@ -27,6 +27,12 @@ class UltimateGeminiHunter:
     def log(self, msg, status="INFO"):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [{status}] 🛡️ {msg}")
 
+    def escape_markdown(self, text):
+        """تنظيف النص من الرموز اللي كتشل حركة تيليغرام"""
+        # الهروب من الرموز الخاصة فـ MarkdownV2 لضمان القبول
+        escape_chars = r'_*[]()~`>#+-=|{}.!'
+        return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
+
     def init_session(self):
         """إقلاع المحرك واختراق الجلسة"""
         self.log("إقلاع المحرك UC Mode...")
@@ -36,7 +42,6 @@ class UltimateGeminiHunter:
             with open("cookies.json", "r") as f:
                 cookies = json.load(f)
                 for c in cookies:
-                    # تنظيف الكوكيز لتفادي AssertionError
                     if 'sameSite' in c and c['sameSite'] not in ["Strict", "Lax", "None"]:
                         del c['sameSite']
                     try: self.driver.add_cookie(c)
@@ -55,7 +60,7 @@ class UltimateGeminiHunter:
         self.driver.execute_script("window.scrollTo(0, 800);")
         time.sleep(5)
         
-        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')[:3] # نكتفي بـ 3 همزات لضمان الجودة
+        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')[:3]
         self.log(f"تم رصد {len(cards)} إعلانات أولية.")
 
         for card in cards:
@@ -72,46 +77,69 @@ class UltimateGeminiHunter:
                     })
             except: continue
 
+    def send_to_telegram(self, report, image_url):
+        """إرسال ذكي مع فحص استجابة تيليغرام"""
+        url = f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto"
+        
+        # غانستعملو MarkdownV2 حيت هي الأكثر استقراراً مع التنظيف
+        payload = {
+            "chat_id": CONFIG["TELEGRAM_CHAT_ID"],
+            "photo": image_url,
+            "caption": report,
+            "parse_mode": "MarkdownV2"
+        }
+        
+        try:
+            res = requests.post(url, json=payload, timeout=15)
+            if res.status_code == 200:
+                self.log("✅ تم الإرسال الفعلي لتيليغرام.")
+            else:
+                # لو فشل بسبب الرموز، غانصيفطوه نص عادي بلا تنسيق كخيار أمان
+                self.log(f"❌ تيليغرام رفض التنسيق (Code {res.status_code}). كنحاول نصيفط نص عادي...", "WARNING")
+                fallback_payload = {
+                    "chat_id": CONFIG["TELEGRAM_CHAT_ID"],
+                    "photo": image_url,
+                    "caption": f"⚠️ همزة جديدة (تنسيق مبسط):\n{report.replace('\\', '')}",
+                }
+                requests.post(url, json=fallback_payload, timeout=15)
+        except Exception as e:
+            self.log(f"خطأ تقني فـ تيليغرام: {e}", "ERROR")
+
     def analyze_and_broadcast(self):
-        """التحليل باستعمال Gemini 2.5 Flash الجديد"""
+        """التحليل بذكاء Gemini وتنظيف الداتا"""
         for i, deal in enumerate(self.deals):
             self.log(f"بدء تحليل الهمزة {i+1}/{len(self.deals)}...")
             
             prompt = f"""
-            Analyze this property data: {json.dumps(deal, ensure_ascii=False)}
-            Convert price to 'Million' (Moroccan), check location, and write a Professional Business Darija report.
-            Format:
-            💎 **[اسم العقار]**
-            💰 **الثمن بالملايين:** [Price]
-            📊 **تحليل النخبة:** [Why it's a deal?]
-            ✅ **المميزات:**
-            ❌ **العيوب:**
-            🔗 **الرابط:** [Link]
+            Analyze this property: {json.dumps(deal, ensure_ascii=False)}
+            Write a Professional Business Darija report. 
+            Rules:
+            1. Price to Million.
+            2. Identify if it's a good deal.
+            3. Use clear bullet points.
             """
             
             try:
-                # الاستدعاء النخبوي الجديد من الصورة
+                # الاستدعاء من Gemini 2.5 Flash
                 response = client.models.generate_content(
                     model=CONFIG["MODEL_ID"],
                     contents=prompt
                 )
-                report = response.text
+                raw_report = response.text
                 
-                # إرسال لتيليغرام
-                requests.post(f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto", 
-                             json={"chat_id": CONFIG["TELEGRAM_CHAT_ID"], "photo": deal['image'], "caption": report, "parse_mode": "Markdown"})
+                # تنظيف النص ليتوافق مع تيليغرام
+                safe_report = self.escape_markdown(raw_report)
                 
-                self.log(f"✅ تم الإرسال. انتظار {CONFIG['WAIT_BETWEEN_DEALS']} ثانية لحماية الكوطا...")
-                time.sleep(CONFIG["WAIT_BETWEEN_DEALS"]) # راحة إجبارية
+                # الإرسال مع فحص الوصول
+                self.send_to_telegram(safe_report, deal['image'])
+                
+                self.log(f"انتظار {CONFIG['WAIT_BETWEEN_DEALS']} ثانية...")
+                time.sleep(CONFIG["WAIT_BETWEEN_DEALS"])
 
             except Exception as e:
-                if "429" in str(e):
-                    self.log("🛑 وصلنا لسقف RESOURCE_EXHAUSTED. غانحبسو الدورة دابا.", "WARNING")
-                    break 
-                self.log(f"خطأ تقني: {e}", "ERROR")
+                self.log(f"خطأ فـ Gemini: {e}", "ERROR")
 
     def run(self):
-        """المحرك الأساسي"""
         try:
             self.init_session()
             self.hunt_listings()
