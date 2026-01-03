@@ -7,32 +7,33 @@ from seleniumbase import Driver
 from groq import Groq
 from datetime import datetime
 
-# --- إعدادات مركز العمليات ---
+# --- بروتوكول الإعدادات العليا ---
 CONFIG = {
     "GROQ_API_KEY": os.getenv("GROQ_API_KEY"),
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
     "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     "TARGET_URL": "https://web.facebook.com/marketplace/casablanca/propertyforsale",
-    "AI_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct"
+    "AI_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct" # الموديل المعتمد
 }
 
 client = Groq(api_key=CONFIG["GROQ_API_KEY"])
 
-class UltimateLlamaHunter:
+class EliteLlamaSystem:
     def __init__(self):
         self.driver = None
         self.valid_samesite = ["Strict", "Lax", "None"]
 
     def log(self, action, status="DEBUG"):
+        """نظام تتبع احترافي"""
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [{status}] 🛡️ {action}")
 
     def boot_and_inject(self):
-        """إقلاع المحرك الشبح وزرع الهوية الرقمية"""
-        self.log("إقلاع المحرك UC Mode...")
+        """إقلاع المحرك الشبح وزرع الهوية الرقمية المنظفة"""
+        self.log("إقلاع المحرك بوضعية UC...")
         self.driver = Driver(uc=True, headless=True)
         try:
             self.driver.get("https://web.facebook.com")
-            # تنظيف الكوكيز لتفادي انهيار المتصفح
+            # تنظيف الكوكيز حبة حبة لتفادي AssertionError
             with open("cookies.json", "r") as f:
                 cookies = json.load(f)
                 for c in cookies:
@@ -42,101 +43,114 @@ class UltimateLlamaHunter:
                     except: continue
             self.driver.refresh()
             time.sleep(5)
-            self.driver.save_screenshot("debug_1_session.png")
-            self.log("تم زرع الكوكيز. سكرين شوت (1) واجدة.")
+            self.driver.save_screenshot("debug_1_auth.png")
+            self.log("تم اختراق الجلسة. سكرين شوت (1) واجدة.")
         except Exception as e:
-            self.log(f"خطأ فـ الكوكيز: {e}", "ERROR")
+            self.log(f"خطأ في زرع الكوكيز: {e}", "ERROR")
 
-    def run_safe_mission(self):
-        """مهمة قنص منظمة بلا تداخل معلومات"""
-        self.log(f"التوجه للهدف: {CONFIG['TARGET_URL']}")
+    def run_clean_mission(self):
+        """مهمة قنص منظمة بنظام الـ JSON المعزول"""
+        self.log(f"التوجه للماركت بلايس: {CONFIG['TARGET_URL']}")
         self.driver.get(CONFIG["TARGET_URL"])
-        time.sleep(12)
+        time.sleep(12) # انتظار لضمان التحميل الكامل
         self.driver.save_screenshot("debug_2_marketplace.png")
 
-        # 1. جمع الروابط أولاً (Decoupling) لقتل stale element reference
-        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')[:3]
-        mission_list = []
+        # المرحلة 1: القنص الأولي وفصل البيانات (Decoupling)
+        # كنهزو الروابط فـ لستة باش نقتلو stale element reference نهائياً
+        listing_cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')[:3]
+        pre_hunt_list = []
 
-        for card in cards:
+        for card in listing_cards:
             try:
-                mission_list.append({
+                pre_hunt_list.append({
                     "cover": card.find_element("css selector", "img").get_attribute("src"),
                     "link": card.find_element("css selector", "a").get_attribute("href"),
-                    "title": card.text.split('\n')[1] if len(card.text.split('\n')) > 1 else "عقار"
+                    "title": card.text.split('\n')[1] if len(card.text.split('\n')) > 1 else "عقار مغربي"
                 })
             except: continue
 
-        self.log(f"تم تخزين {len(mission_list)} روابط. بادي الفحص العميق...")
+        self.log(f"تم تخزين {len(pre_hunt_list)} روابط بنجاح. بادي الفحص العميق...")
 
-        # 2. معالجة كل رابط من القائمة المعزولة
-        for i, item in enumerate(mission_list):
+        # المرحلة 2: الفحص العميق وبناء ملف JSON لكل إعلان
+        for i, item in enumerate(pre_hunt_list):
             try:
-                self.log(f"فحص الإعلان {i+1}: {item['title'][:20]}")
+                self.log(f"دخول عميق للإعلان {i+1}: {item['title'][:25]}...")
                 self.driver.get(item['link'])
-                time.sleep(10) # انتظار لضمان تحميل الصور
+                time.sleep(10) # وقت كافي لظهور الصور الداخلية
                 self.driver.save_screenshot(f"debug_3_item_{i+1}.png")
 
-                # قنص الصور الداخلية وتصفية الروابط لتفادي Error 400
+                # قنص الصور وتصفية الروابط لتفادي Error 400
                 raw_imgs = self.driver.find_elements("css selector", 'img[src*="fbcdn"]')
-                clean_photos = []
+                photos_json = []
                 for img in raw_imgs:
                     src = img.get_attribute("src")
-                    if src and src.startswith("http") and src not in clean_photos:
-                        clean_photos.append(src)
+                    if src and src.startswith("http") and src not in photos_json:
+                        photos_json.append(src)
                 
-                final_photos = clean_photos[:6]
+                final_photos = photos_json[:6] # نكتفي بـ 6 صور للتحليل الدقيق
 
-                # Fallback: إذا فشل تحميل الصور لداخل، خدم بـ Cover
-                if not final_photos:
-                    final_photos = [item['cover']]
+                # إذا لم يجد صورا داخلية، يستخدم صورة الكوفر
+                if not final_photos: final_photos = [item['cover']]
 
-                if final_photos:
-                    self.analyze_and_report(final_photos, item['link'], item['title'])
+                # تجميع البيانات في ملف JSON "افتراضي" لإرساله لـ Groq
+                deal_package = {
+                    "property_id": i+1,
+                    "title": item["title"],
+                    "link": item["link"].split('?')[0],
+                    "images": final_photos,
+                    "timestamp": datetime.now().isoformat()
+                }
+
+                self.analyze_and_broadcast(deal_package)
                 
             except Exception as e:
-                self.log(f"فشل فـ معالجة الإعلان {i+1}: {e}", "ERROR")
+                self.log(f"فشل في معالجة الإعلان {i+1}: {e}", "ERROR")
 
-    def analyze_and_report(self, photos, link, title):
-        """تحليل نخبوي باستعمال Llama-4 Scout وإرسال لتيليغرام"""
-        self.log(f"AI كايحلل {len(photos)} صورة دابا...")
+    def analyze_and_broadcast(self, deal_json):
+        """إرسال ملف الـ JSON المنظم لـ Llama-4 Scout والتحليل النخبوي"""
+        self.log(f"إرسال JSON الصفقة {deal_json['property_id']} لـ AI...")
         
-        # تنظيم payload الصور لـ Groq بلا غلط
-        img_payload = [{"type": "image_url", "image_url": {"url": url}} for url in photos]
+        # تحويل الداتا لـ JSON String نقي بلا أخطاء
+        formatted_json = json.dumps(deal_json, ensure_ascii=False, indent=2)
+        
+        img_payload = [{"type": "image_url", "image_url": {"url": url}} for url in deal_json["images"]]
         
         prompt = f"""
-        حلل هاد العقار ({title}) باستعمال كاع الصور.
-        المطلوب بالدارجة المغربية (Business Darija):
-        1. حول الثمن لـ 'مليون' (مثلا 950,000 DH تولي 95 مليون).
-        2. تحليل جودة الفينيسيون (الزليج، الصباغة، الكوزينة).
-        3. جدول Pros & Cons بوضوح.
-        4. الرابط فـ النهاية: {link.split('?')[0]}
+        Analyze this property data provided in JSON format:
+        {formatted_json}
+
+        Required output in Moroccan Business Darija:
+        1. Convert price to 'Million' (e.g., 600,000 DH -> 60 مليون).
+        2. Detailed 'Finition' analysis based on all images.
+        3. Pros & Cons Table.
+        4. Clear Link in the end.
         """
         
         try:
             completion = client.chat.completions.create(
                 messages=[{"role": "user", "content": [{"type": "text", "text": prompt}] + img_payload}],
                 model=CONFIG["AI_MODEL"],
-                temperature=0.1
+                temperature=0.1 # دقة رياضية
             )
             report = completion.choices[0].message.content
             
-            # إرسال البطاقة لتيليغرام
+            # إرسال البطاقة النهائية لتيليغرام
             requests.post(f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto", 
-                         json={"chat_id": CONFIG["TELEGRAM_CHAT_ID"], "photo": photos[0], "caption": report, "parse_mode": "Markdown"})
-            self.log("✅ التقرير مشى لتيليغرام بنجاح.")
+                         json={"chat_id": CONFIG["TELEGRAM_CHAT_ID"], "photo": deal_json["images"][0], "caption": report, "parse_mode": "Markdown"})
+            self.log(f"✅ تم إرسال التقرير {deal_json['property_id']} بنجاح.")
         except Exception as e:
-            self.log(f"خطأ AI: {e}", "ERROR")
+            self.log(f"خطأ في تواصل AI: {e}", "ERROR")
 
-    def execute(self):
+    def execute_one_shot(self):
+        """تنفيذ العملية كاملة لمرة واحدة"""
         try:
             self.boot_and_inject()
-            self.run_safe_mission()
+            self.run_clean_mission()
         finally:
             if self.driver:
                 self.driver.quit()
-                self.log("انتهت المهمة. إغلاق المتصفح.")
+                self.log("إغلاق المحرك بسلام. انتهت المهمة.")
 
 if __name__ == "__main__":
-    print("--- 🏁 انطلاق المهمة النخبوية V8.3 ---")
-    UltimateLlamaHunter().execute()
+    print("--- 🏁 انطلاق نظام Llama-4 Scout النخبوي (JSON Edition) ---")
+    EliteLlamaSystem().execute_one_shot()
