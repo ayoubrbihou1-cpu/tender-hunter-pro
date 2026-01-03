@@ -25,7 +25,7 @@ class DeepScoutHunter:
     def __init__(self):
         self.driver = None
         self.deals = []
-        self.processed_ids = set() # نظام منع التكرار فـ نفس الدورة
+        self.processed_ids = set()
 
     def log(self, msg, status="INFO"):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [{status}] 🛡️ {msg}")
@@ -37,7 +37,7 @@ class DeepScoutHunter:
         return None, raw_link
 
     def init_session(self):
-        self.log("إقلاع المحرك الجراحي العميق (V18)...")
+        self.log("إقلاع المحرك الجراحي العميق (V18.1 - Fixed)...")
         self.driver = Driver(uc=True, headless=True)
         try:
             self.driver.get("https://web.facebook.com")
@@ -54,7 +54,6 @@ class DeepScoutHunter:
             raise
 
     def hunt_listings(self):
-        """القنص الأولي للروابط فقط لتفادي خلط الصور"""
         self.log(f"التوجه للهدف: {CONFIG['TARGET_URL']}")
         self.driver.get(CONFIG["TARGET_URL"])
         time.sleep(15)
@@ -71,20 +70,25 @@ class DeepScoutHunter:
                     self.deals.append({"id": item_id, "link": clean_link})
                     self.processed_ids.add(item_id)
             except: continue
-        self.log(f"تم حجز {len(self.deals)} روابط فريدة للفحص العميق.")
+        self.log(f"تم حجز {len(self.deals)} روابط للفحص.")
 
     def analyze_and_broadcast(self):
-        """الدخول لقلب الإعلان، استخراج الـ Description والتحليل النخبوي"""
         for i, deal in enumerate(self.deals):
             try:
                 self.log(f"اختراق الإعلان {i+1}: {deal['link']}")
                 self.driver.get(deal['link'])
                 time.sleep(10)
 
-                # 1. استخراج الصورة الحقيقية من داخل الإعلان (تجنب التكرار)
-                main_img = self.driver.find_element("css selector", "img[alt='No photo description available.']").get_attribute("src")
-                
-                # 2. فتح الـ Description كاملة (Voir plus)
+                # --- تصحيح عصب الخطأ: استخراج الصورة بنظام الفلترة (Robust Selection) ---
+                try:
+                    # كنقلبو على أول صورة كبيرة ف الصفحة ماشي ب الـ alt
+                    main_img_elem = self.driver.find_element("css selector", "div[role='main'] img[src*='fbcdn']")
+                    main_img = main_img_elem.get_attribute("src")
+                except:
+                    self.log("⚠️ فشل Selector الصورة الأول، كنحاول البديل...", "WARNING")
+                    main_img = self.driver.find_element("css selector", "img[cursor='pointer']").get_attribute("src")
+
+                # فتح الـ Description كاملة
                 try:
                     see_more = self.driver.find_element("xpath", "//span[contains(text(), 'Voir plus') or contains(text(), 'See more')]")
                     self.driver.execute_script("arguments[0].click();", see_more)
@@ -93,31 +97,24 @@ class DeepScoutHunter:
 
                 full_desc = self.driver.find_element("css selector", "div[dir='auto']").text
                 
-                # 3. برومبت خبير العقارات النخبوي (الدارجة + الأرقام + الجودة)
                 elite_prompt = f"""
-                أنت 'المرشد الأعظم' خبير العقارات في المغرب. حلل هذا الإعلان بعمق:
-                النص المستخرج: {full_desc}
+                أنت 'المرشد الأعظم' خبير العقارات في المغرب. حلل هذا الإعلان بعمق بالدارجة المغربية:
+                الوصف: {full_desc}
                 الرابط: {deal['link']}
 
-                المطلوب تقرير نخبوي بالدارجة المغربية (Business Darija):
-                💎 <b>[عنوان ذكي للعقار]</b>
-                💰 <b>الثمن بالملايين:</b> [حول الثمن لمليون مغربي بدقة]
-                📍 <b>الموقع:</b> [تحديد الحي بدقة]
-                📞 <b>الهاتف:</b> [استخرج أي رقم هاتف موجود ف النص، إذا لم يوجد قل 'غير متوفر']
-
-                📊 <b>تحليل جودة الفينيسيون (من الصورة والنص):</b>
-                - <b>الأرضية والجدران:</b> [تقييم دقيق]
-                - <b>المطبخ والحمام:</b> [تقييم دقيق]
-                - <b>الإضاءة والتهوية:</b> [تقييم من الصورة]
-
-                🎯 <b>رأي الخبير (Verdict):</b> [هل هو أفضل اقتراح؟ لماذا؟]
-                ✅ <b>المميزات:</b> (نقطتين)
-                ❌ <b>العيوب:</b> (نقطة واحدة)
-
-                🔗 <b>الرابط المباشر:</b> {deal['link']}
+                المطلوب:
+                💎 <b>[عنوان ذكي]</b>
+                💰 <b>الثمن بالملايين:</b>
+                📍 <b>الموقع:</b>
+                📞 <b>الهاتف:</b> [استخرجه بدقة من النص]
+                📊 <b>تحليل جودة الفينيسيون (الأرضية، المطبخ، الحمام):</b>
+                🎯 <b>رأي الخبير:</b> [هل هو أفضل اقتراح؟]
+                ✅ <b>المميزات:</b>
+                ❌ <b>العيوب:</b>
+                🔗 <b>الرابط:</b> {deal['link']}
                 """
 
-                # التحليل البصري بـ Gemini
+                # التحليل البصري
                 image_bytes = requests.get(main_img).content
                 contents = [
                     types.Part.from_text(text=elite_prompt),
@@ -125,8 +122,6 @@ class DeepScoutHunter:
                 ]
 
                 response = client.models.generate_content(model=CONFIG["MODEL_ID"], contents=contents)
-                
-                # إرسال لتيليغرام (نظام HTML المستقر)
                 self.send_to_telegram(response.text, main_img)
                 time.sleep(CONFIG["WAIT_BETWEEN_DEALS"])
 
