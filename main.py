@@ -12,7 +12,7 @@ CONFIG = {
     "GROQ_API_KEY": os.getenv("GROQ_API_KEY"),
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
     "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
-    "TARGET_URL": "https://web.facebook.com/marketplace/casablanca/propertyforsale",
+    "TARGET_URL": "https://www.facebook.com/marketplace/fez/propertyrentals/?exact=false",
     "AI_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct", # الموديل العملاق
     "WAIT_TIME": 10
 }
