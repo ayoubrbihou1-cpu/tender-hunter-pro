@@ -2,20 +2,20 @@ import os
 import time
 import json
 import requests
-from google import genai  # المكتبة الجديدة لـ 2026
+from google import genai 
 from seleniumbase import Driver
 from datetime import datetime
 
-# --- إعدادات مركز القيادة العليا ---
+# --- إعدادات مركز القيادة ---
 CONFIG = {
     "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY"),
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
     "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     "TARGET_URL": "https://www.facebook.com/marketplace/fez/propertyrentals/?exact=false",
-    "MODEL_ID": "gemini-3-pro-preview" # الموديل القناص
+    "MODEL_ID": "gemini-3-pro-preview",
+    "AI_WAIT_SEC": 35  # انتظار 35 ثانية لتفادي خطأ 429
 }
 
-# إقلاع محرك Gemini 3
 client = genai.Client(api_key=CONFIG["GEMINI_API_KEY"])
 
 class EliteGemini3Hunter:
@@ -27,7 +27,7 @@ class EliteGemini3Hunter:
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [{status}] 🛡️ {msg}")
 
     def init_session(self):
-        """اختراق الجلسة بوضعية الشبح"""
+        """إقلاع المحرك واختراق الجلسة"""
         self.log("إقلاع المحرك UC Mode...")
         self.driver = Driver(uc=True, headless=True)
         try:
@@ -35,29 +35,27 @@ class EliteGemini3Hunter:
             with open("cookies.json", "r") as f:
                 cookies = json.load(f)
                 for c in cookies:
-                    # حل مشكلة AssertionError
                     if 'sameSite' in c and c['sameSite'] not in ["Strict", "Lax", "None"]:
                         del c['sameSite']
                     try: self.driver.add_cookie(c)
                     except: continue
             self.driver.refresh()
             time.sleep(5)
-            self.log("تم تأكيد الهوية الرقمية بنجاح.")
+            self.log("تم تأكيد الهوية الرقمية.")
         except Exception as e:
             self.log(f"فشل فـ الجلسة: {e}", "ERROR")
 
     def hunt_listings(self):
-        """قنص الهمزات من ماركت بلايس فاس"""
+        """قنص الداتا الخام"""
         self.log(f"التوجه للهدف: {CONFIG['TARGET_URL']}")
         self.driver.get(CONFIG["TARGET_URL"])
         time.sleep(15)
         self.driver.execute_script("window.scrollTo(0, 800);")
         time.sleep(5)
         
-        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')[:5]
-        self.log(f"تم رصد {len(cards)} إعلان. جاري الاستخراج المعزول...")
+        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')[:4]
+        self.log(f"تم رصد {len(cards)} إعلان.")
 
-        # فصل البيانات لتفادي stale element reference
         for card in cards:
             try:
                 img = card.find_element("css selector", "img").get_attribute("src")
@@ -73,25 +71,29 @@ class EliteGemini3Hunter:
             except: continue
 
     def analyze_and_broadcast(self):
-        """التحليل بذكاء Gemini 3"""
-        for deal in self.deals:
-            self.log(f"Gemini 3 كايحلل: {deal['title'][:20]}...")
-            prompt = f"Analyze this property: {json.dumps(deal, ensure_ascii=False)}. Write a high-level Business Darija report with Million conversion and Pros/Cons."
+        """التحليل بذكاء Gemini 3 مع احترام الكوطا"""
+        for i, deal in enumerate(self.deals):
+            self.log(f"تحليل الصفقة {i+1}/{len(self.deals)}: {deal['title'][:20]}...")
+            prompt = f"Analyze this property: {json.dumps(deal, ensure_ascii=False)}. Write a Business Darija report."
             try:
-                # الاستدعاء النخبوي الجديد
                 response = client.models.generate_content(
                     model=CONFIG["MODEL_ID"],
                     contents=prompt
                 )
                 report = response.text
                 
-                # إرسال البطاقة لتيليغرام
                 requests.post(f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto", 
                              json={"chat_id": CONFIG["TELEGRAM_CHAT_ID"], "photo": deal['image'], "caption": report, "parse_mode": "Markdown"})
-                self.log(f"✅ تم الإرسال بنجاح.")
-                time.sleep(2)
+                
+                self.log("✅ تم الإرسال. جاري الانتظار لتفادي الحظر...")
+                # الراحة الإجبارية لتفادي RESOURCE_EXHAUSTED
+                time.sleep(CONFIG["AI_WAIT_SEC"]) 
+                
             except Exception as e:
-                self.log(f"خطأ فـ Gemini 3: {e}", "WARNING")
+                self.log(f"فشل فـ Gemini 3: {e}", "WARNING")
+                if "429" in str(e):
+                    self.log("🛑 وصلنا لسقف السرعة! غانرتاحو دقيقة...")
+                    time.sleep(60)
 
     def run(self):
         try:
