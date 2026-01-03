@@ -2,7 +2,7 @@ import os
 import time
 import json
 import requests
-import html # مكتبة رسمية لتنظيف HTML
+import html 
 from google import genai 
 from seleniumbase import Driver
 from datetime import datetime
@@ -13,7 +13,7 @@ CONFIG = {
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
     "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     "TARGET_URL": "https://www.facebook.com/marketplace/fez/propertyrentals/?exact=false",
-    "MODEL_ID": "gemini-2.5-flash",
+    "MODEL_ID": "gemini-2.5-flash", # موديل 2026 كيدعم الرؤية بامتياز
     "WAIT_BETWEEN_DEALS": 65 
 }
 
@@ -28,7 +28,7 @@ class UltimateHTMLHunter:
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [{status}] 🛡️ {msg}")
 
     def init_session(self):
-        self.log("إقلاع المحرك الفولاذي (V14)...")
+        self.log("إقلاع المحرك الفولاذي (V15 - Vision Mode)...")
         self.driver = Driver(uc=True, headless=True)
         try:
             self.driver.get("https://web.facebook.com")
@@ -80,30 +80,63 @@ class UltimateHTMLHunter:
         try:
             res = requests.post(url, json=payload, timeout=15)
             if res.status_code == 200:
-                self.log("✅ تم الإرسال الفعلي بنظام HTML.")
+                self.log("✅ تم الإرسال الفعلي لتيليغرام.")
             else:
                 self.log(f"❌ خطأ تيليغرام: {res.text}", "ERROR")
         except Exception as e:
             self.log(f"خطأ تقني: {e}", "ERROR")
 
     def analyze_and_broadcast(self):
+        """التحليل النخبوي باستعمال الرؤية الحاسوبية"""
         for i, deal in enumerate(self.deals):
-            self.log(f"تحليل الهمزة {i+1}/{len(self.deals)}...")
+            self.log(f"تحليل الهمزة {i+1}/{len(self.deals)} بالرؤية الحاسوبية...")
             
-            # برومبت يفرض وسوم HTML بسيطة
-            prompt = f"""
-            Analyze this property: {json.dumps(deal, ensure_ascii=False)}
-            Output MUST be in Moroccan Darija. Use ONLY <b> tags for bolding.
-            Example: <b>[Title]</b>
+            # برومبت نخبوي لتحليل العقار بالدارجة (نفس ستايل تححححح.PNG)
+            elite_prompt = f"""
+            أنت خبير ومحلل عقاري نخبوي في المغرب. حلل هذا العقار بناءً على النص والصورة المرفقة.
+            المعطيات: {json.dumps(deal, ensure_ascii=False)}
+
+            المطلوب هو تقرير بالدارجة المغربية "نخبوي" ومنظم كالتالي:
+            💎 <b>[اسم العقار]</b>
+            💰 <b>الثمن بالملايين:</b> [حول الثمن لمليون مغربي، مثلا 5000 درهم للكراء أو 60 مليون للبيع]
+            📍 <b>الموقع:</b> [استخرج الموقع من النص]
+
+            📊 <b>تحليل النخبة:</b> [حلل الحالة من الصورة، الفينيسيون، هل هو فرصة حقيقية أم لا؟]
+            
+            ✅ <b>المميزات:</b>
+            - [نقطة قوة من الصورة]
+            - [نقطة قوة من النص]
+            
+            ❌ <b>العيوب:</b>
+            - [نقطة سلبية أو غامضة]
+
+            📞 <b>للتواصل:</b> Contact via link
+            🔗 <b>الرابط:</b> {deal['link']}
+
+            ملاحظة: استعمل فقط <b> و </b> للتغليظ. لا تستعمل المارك داون.
             """
-            
+
             try:
-                response = client.models.generate_content(model=CONFIG["MODEL_ID"], contents=prompt)
+                # تحميل الصورة لإرسالها لـ AI كبيانات بصيرة
+                image_resp = requests.get(deal['image'])
+                image_data = image_resp.content
+
+                # الاستدعاء المزدوج (نص + صورة)
+                response = client.models.generate_content(
+                    model=CONFIG["MODEL_ID"],
+                    contents=[
+                        elite_prompt,
+                        {"mime_type": "image/jpeg", "data": image_data}
+                    ]
+                )
+                
                 report = response.text
                 self.send_to_telegram(report, deal['image'])
+                
+                # راحة تقنية لحماية الكوطا
                 time.sleep(CONFIG["WAIT_BETWEEN_DEALS"])
             except Exception as e:
-                self.log(f"خطأ Gemini: {e}", "ERROR")
+                self.log(f"خطأ Gemini Vision: {e}", "ERROR")
 
     def run(self):
         try:
