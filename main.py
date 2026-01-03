@@ -7,134 +7,128 @@ from seleniumbase import Driver
 from groq import Groq
 from datetime import datetime
 
-# --- بروتوكول الإعدادات النخبوية ---
+# --- إعدادات مركز القيادة ---
 CONFIG = {
     "GROQ_API_KEY": os.getenv("GROQ_API_KEY"),
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
     "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     "TARGET_URL": "https://web.facebook.com/marketplace/casablanca/propertyforsale",
-    "AI_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct", # الموديل العملاق
-    "WAIT_TIME": 10
+    "AI_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct"
 }
 
 client = Groq(api_key=CONFIG["GROQ_API_KEY"])
 
-class EliteVisualHunter:
-    def __init__(self):
-        self.driver = None
-        self.deals = []
+def send_to_telegram(message, cover_image):
+    """إرسال التقرير النهائي مع صورة الكوفر فقط للحفاظ على النقاء"""
+    url = f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto"
+    payload = {
+        "chat_id": CONFIG["TELEGRAM_CHAT_ID"],
+        "photo": cover_image,
+        "caption": message,
+        "parse_mode": "Markdown"
+    }
+    try:
+        requests.post(url, json=payload, timeout=15)
+    except Exception as e:
+        print(f"⚠️ خطأ فني فـ تيليغرام: {e}")
 
-    def log(self, msg, status="INFO"):
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [{status}] 🛡️ {msg}")
-
-    def send_telegram_deal(self, caption, photo_url):
-        """إرسال كل همزة ببطاقة احترافية (تصويرة + نص)"""
-        url = f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto"
-        payload = {
-            "chat_id": CONFIG["TELEGRAM_CHAT_ID"],
-            "photo": photo_url,
-            "caption": caption,
-            "parse_mode": "Markdown"
-        }
-        try:
-            requests.post(url, json=payload, timeout=15)
-        except Exception as e:
-            self.log(f"خطأ في إرسال تيليغرام: {e}", "ERROR")
-
-    def init_session(self):
-        """الدخول بوضعية الشبح وزرع الكوكيز"""
-        self.driver = Driver(uc=True, headless=True)
-        try:
-            self.driver.get("https://web.facebook.com")
-            with open("cookies.json", "r") as f:
-                cookies = json.load(f)
-                for cookie in cookies:
-                    if 'sameSite' in cookie and cookie['sameSite'] not in ["Strict", "Lax", "None"]:
-                        del cookie['sameSite']
-                    self.driver.add_cookie(cookie)
-            self.driver.refresh()
-            time.sleep(5)
-            self.log("تم اختراق الجلسة بالكوكيز بنجاح.")
-        except Exception as e:
-            self.log(f"فشل زرع الكوكيز: {e}", "CRITICAL")
-            raise
-
-    def hunt_listings(self):
-        """قنص الداتا الخام مع الروابط البصرية"""
-        self.log(f"الذهاب للهدف: {CONFIG['TARGET_URL']}")
-        self.driver.get(CONFIG["TARGET_URL"])
+def get_detailed_deals():
+    """محرك القنص العميق: كيدخل لوسط كل إعلان ويجبد كاع التصاور"""
+    driver = Driver(uc=True, headless=True)
+    structured_deals = []
+    
+    try:
+        # زرع الهوية الرقمية
+        driver.get("https://web.facebook.com")
+        with open("cookies.json", "r") as f:
+            for c in json.load(f): driver.add_cookie(c)
+        driver.refresh()
+        
+        print("🕵️‍♂️ بادي عملية القنص العميق...")
+        driver.get(CONFIG["TARGET_URL"])
         time.sleep(random.uniform(10, 15))
         
-        # سكرول خفيف باش يبانو الصور
-        self.driver.execute_script("window.scrollTo(0, 800);")
-        time.sleep(3)
+        # كنجبدو أول 5 ديال "الهوتات" باش AI يركز مزيان
+        listing_elements = driver.find_elements("css selector", 'div[style*="max-width"]')[:5]
+        item_links = [el.find_element("css selector", "a").get_attribute("href") for el in listing_elements]
 
-        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')
-        self.log(f"تم رصد {len(cards)} إعلان. جاري استخراج البيانات البصرية...")
-
-        for card in cards[:6]: # كنركزو على أفضل 6 باش نحافظو على جودة AI
+        for link in item_links:
             try:
-                img = card.find_element("css selector", "img").get_attribute("src")
-                raw_text = card.text.split('\n')
-                link = card.find_element("css selector", "a").get_attribute("href").split('?')[0]
+                driver.get(link)
+                time.sleep(5)
                 
-                if "/marketplace/item/" in link and len(raw_text) >= 2:
-                    self.deals.append({
-                        "price": raw_text[0],
-                        "title": raw_text[1],
-                        "location": raw_text[2] if len(raw_text) > 2 else "غير محدد",
-                        "link": link,
-                        "image": img
-                    })
-            except: continue
-        self.log(f"تم قنص {len(self.deals)} بطاقة منظمة.")
+                # قنص كاع روابط التصاور فـ الإعلان
+                img_elements = driver.find_elements("css selector", 'img[alt*="Property"]') or \
+                               driver.find_elements("css selector", 'div[role="img"] img')
+                
+                all_photos = list(set([img.get_attribute("src") for img in img_elements if img.get_attribute("src")]))
+                
+                # استخراج النصوص
+                title = driver.title.split('|')[0].strip()
+                price_text = driver.find_element("css selector", 'span[style*="-webkit-line-clamp"]').text if driver.find_elements("css selector", 'span[style*="-webkit-line-clamp"]') else "غير محدد"
+                
+                structured_deals.append({
+                    "title": title,
+                    "price": price_text,
+                    "photos": all_photos[:8], # كنصيفطو أول 8 تصاور لـ AI للتحليل
+                    "cover": all_photos[0] if all_photos else None,
+                    "link": link.split('?')[0]
+                })
+                print(f"✅ تم جمع {len(all_photos)} صورة لـ: {title[:20]}")
+            except Exception as e:
+                print(f"⚠️ تجاوزنا إعلان بسباب خطأ: {e}")
+                continue
+                
+        return structured_deals
+    finally:
+        driver.quit()
 
-    def analyze_and_broadcast(self):
-        """التحليل النخبوي لكل صفقة وإرسالها بالملايين"""
-        for deal in self.deals:
-            self.log(f"AI كايحلل فـ: {deal['title'][:20]}...")
+def analyze_with_multi_vision(deal):
+    """إرسال "باكاج" الصور لـ AI لتحليل الفينيسيون والحالة العامة"""
+    # تحضير الصور لـ Groq Vision
+    image_contents = [{"type": "image_url", "image_url": {"url": url}} for url in deal['photos']]
+    
+    prompt_content = [
+        {
+            "type": "text",
+            "text": f"""
+            Analyze ALL these images of this property: {deal['title']}.
+            Price stated: {deal['price']}.
             
-            prompt = f"""
-            Analyze this Moroccan property: {json.dumps(deal, ensure_ascii=False)}
-            
-            Requirements:
-            1. Convert the price to Moroccan 'Million' (e.g. 800,000 DH -> 80 مليون).
-            2. Extract any phone number if present in text.
-            3. Write a high-level Business Darija report.
+            Task:
+            1. Look at the kitchen, bathrooms, and floors across all photos.
+            2. Judge the 'Finition' quality (High/Medium/Low).
+            3. Convert price to Moroccan 'Million' (e.g., 950,000 DH -> 95 مليون).
+            4. Write a professional report in Moroccan Business Darija.
             
             Structure:
-            💎 **[اسم الهمزة]**
-            💰 **الثمن بالملايين:** [Price in Million]
-            📍 **الموقع:** [Location]
-            📊 **تحليل النخبة:** (لماذا هي فرصة؟)
-            ✅ **المميزات:** (نقطتين)
-            ❌ **العيوب:** (نقطة واحدة)
-            📞 **للتواصل:** [Phone if found, else 'Contact via link']
-            🔗 **الرابط:** [Link]
+            💎 **[Title]**
+            💰 **الثمن بالملايين:** [Price]
+            🛠️ **حالة الفينيسيون:** [Based on all photos]
+            ✅ **المميزات:**
+            ❌ **العيوب المخفية:** (اللي بانت ليك فالتصاور)
+            🔗 **الرابط:** {deal['link']}
             """
+        }
+    ] + image_contents
 
-            try:
-                completion = client.chat.completions.create(
-                    messages=[{"role": "system", "content": "You are a Master Moroccan Real Estate Scout."},
-                              {"role": "user", "content": prompt}],
-                    model=CONFIG["AI_MODEL"],
-                    temperature=0.1
-                )
-                report = completion.choices[0].message.content
-                self.send_telegram_deal(report, deal['image'])
-                self.log(f"تم إرسال بطاقة {deal['title'][:20]}")
-                time.sleep(2) # راحة للـ API
-            except Exception as e:
-                self.log(f"خطأ في تحليل AI: {e}", "WARNING")
-
-    def run(self):
-        try:
-            self.init_session()
-            self.hunt_listings()
-            self.analyze_and_broadcast()
-        finally:
-            if self.driver: self.driver.quit()
-            self.log("نهاية المهمة بنجاح.")
+    try:
+        completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt_content}],
+            model=CONFIG["AI_MODEL"],
+            temperature=0.1
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        return f"❌ AI تعذر عليه التحليل: {e}"
 
 if __name__ == "__main__":
-    EliteVisualHunter().run()
+    print("🚀 الماكينة 'متعددة الأعين' انطلقت...")
+    deals = get_detailed_deals()
+    for d in deals:
+        if d['photos']:
+            report = analyze_with_multi_vision(d)
+            send_to_telegram(report, d['cover'])
+            print(f"🚀 صيفطنا التقرير لـ {d['title'][:20]}")
+            time.sleep(5)
+    print("✅ المهمة سالات بنجاح نخبوي.")
