@@ -2,23 +2,24 @@ import os
 import time
 import json
 import requests
-from google import genai 
+from google import genai # المكتبة الجديدة كلياً
 from seleniumbase import Driver
 from datetime import datetime
 
-# --- إعدادات مركز القيادة ---
+# --- بروتوكول الإعدادات العليا ---
 CONFIG = {
     "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY"),
     "TELEGRAM_TOKEN": os.getenv("TELEGRAM_TOKEN"),
     "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     "TARGET_URL": "https://www.facebook.com/marketplace/fez/propertyrentals/?exact=false",
-    "MODEL_ID": "gemini-3-pro-preview",
-    "AI_WAIT_SEC": 35  # انتظار 35 ثانية لتفادي خطأ 429
+    "MODEL_ID": "gemini-2.5-flash", # الموديل المعتمد فـ الصورة
+    "WAIT_BETWEEN_DEALS": 65 # نظام حماية الكوطا
 }
 
+# إقلاع عميل Gemini بالطريقة الجديدة
 client = genai.Client(api_key=CONFIG["GEMINI_API_KEY"])
 
-class EliteGemini3Hunter:
+class UltimateGeminiHunter:
     def __init__(self):
         self.driver = None
         self.deals = []
@@ -35,6 +36,7 @@ class EliteGemini3Hunter:
             with open("cookies.json", "r") as f:
                 cookies = json.load(f)
                 for c in cookies:
+                    # تنظيف الكوكيز لتفادي AssertionError
                     if 'sameSite' in c and c['sameSite'] not in ["Strict", "Lax", "None"]:
                         del c['sameSite']
                     try: self.driver.add_cookie(c)
@@ -46,15 +48,15 @@ class EliteGemini3Hunter:
             self.log(f"فشل فـ الجلسة: {e}", "ERROR")
 
     def hunt_listings(self):
-        """قنص الداتا الخام"""
+        """قنص الهمزات من فاس"""
         self.log(f"التوجه للهدف: {CONFIG['TARGET_URL']}")
         self.driver.get(CONFIG["TARGET_URL"])
         time.sleep(15)
         self.driver.execute_script("window.scrollTo(0, 800);")
         time.sleep(5)
         
-        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')[:4]
-        self.log(f"تم رصد {len(cards)} إعلان.")
+        cards = self.driver.find_elements("css selector", 'div[style*="max-width"]')[:3] # نكتفي بـ 3 همزات لضمان الجودة
+        self.log(f"تم رصد {len(cards)} إعلانات أولية.")
 
         for card in cards:
             try:
@@ -71,38 +73,52 @@ class EliteGemini3Hunter:
             except: continue
 
     def analyze_and_broadcast(self):
-        """التحليل بذكاء Gemini 3 مع احترام الكوطا"""
+        """التحليل باستعمال Gemini 2.5 Flash الجديد"""
         for i, deal in enumerate(self.deals):
-            self.log(f"تحليل الصفقة {i+1}/{len(self.deals)}: {deal['title'][:20]}...")
-            prompt = f"Analyze this property: {json.dumps(deal, ensure_ascii=False)}. Write a Business Darija report."
+            self.log(f"بدء تحليل الهمزة {i+1}/{len(self.deals)}...")
+            
+            prompt = f"""
+            Analyze this property data: {json.dumps(deal, ensure_ascii=False)}
+            Convert price to 'Million' (Moroccan), check location, and write a Professional Business Darija report.
+            Format:
+            💎 **[اسم العقار]**
+            💰 **الثمن بالملايين:** [Price]
+            📊 **تحليل النخبة:** [Why it's a deal?]
+            ✅ **المميزات:**
+            ❌ **العيوب:**
+            🔗 **الرابط:** [Link]
+            """
+            
             try:
+                # الاستدعاء النخبوي الجديد من الصورة
                 response = client.models.generate_content(
                     model=CONFIG["MODEL_ID"],
                     contents=prompt
                 )
                 report = response.text
                 
+                # إرسال لتيليغرام
                 requests.post(f"https://api.telegram.org/bot{CONFIG['TELEGRAM_TOKEN']}/sendPhoto", 
                              json={"chat_id": CONFIG["TELEGRAM_CHAT_ID"], "photo": deal['image'], "caption": report, "parse_mode": "Markdown"})
                 
-                self.log("✅ تم الإرسال. جاري الانتظار لتفادي الحظر...")
-                # الراحة الإجبارية لتفادي RESOURCE_EXHAUSTED
-                time.sleep(CONFIG["AI_WAIT_SEC"]) 
-                
+                self.log(f"✅ تم الإرسال. انتظار {CONFIG['WAIT_BETWEEN_DEALS']} ثانية لحماية الكوطا...")
+                time.sleep(CONFIG["WAIT_BETWEEN_DEALS"]) # راحة إجبارية
+
             except Exception as e:
-                self.log(f"فشل فـ Gemini 3: {e}", "WARNING")
                 if "429" in str(e):
-                    self.log("🛑 وصلنا لسقف السرعة! غانرتاحو دقيقة...")
-                    time.sleep(60)
+                    self.log("🛑 وصلنا لسقف RESOURCE_EXHAUSTED. غانحبسو الدورة دابا.", "WARNING")
+                    break 
+                self.log(f"خطأ تقني: {e}", "ERROR")
 
     def run(self):
+        """المحرك الأساسي"""
         try:
             self.init_session()
             self.hunt_listings()
             self.analyze_and_broadcast()
         finally:
             if self.driver: self.driver.quit()
-            self.log("نهاية المهمة.")
+            self.log("نهاية المهمة بنجاح.")
 
 if __name__ == "__main__":
-    EliteGemini3Hunter().run()
+    UltimateGeminiHunter().run()

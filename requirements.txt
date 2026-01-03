@@ -1,4 +1,4 @@
 seleniumbase
 groq
 requests
-google-generativeai
+google-genai
